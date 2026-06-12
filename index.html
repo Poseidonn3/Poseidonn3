@@ -1,94 +1,870 @@
+```html
 <!DOCTYPE html>
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Odaklan</title>
-    sswift
-import SwiftUI
-
-// 1. Vardiya Veri Modeli
-enum ShiftType: String, CaseIterable {
-    case gunduz = "Gündüz"
-    case gece = "Gece"
-    case izin = "İzin"
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, viewport-fit=cover">
+    <title>Vardiya Asistanım Liquid</title>
     
-    var color: Color {
-        switch self {
-        case .gunduz: return .green.opacity(0.6)
-        case .gece: return .yellow.opacity(0.6)
-        case .izin: return .red.opacity(0.6)
-        }
-    }
-}
-
-struct ShiftCalendarApp: App {
-    var body: some Scene {
-        WindowGroup {
-            ContentView()
-        }
-    }
-}
-
-struct ContentView: View {
-    // 2. Referans Ayarları
-    let referenceDate = Date(timeIntervalSince1970: 1778976000) // 15 Mayıs 2026
-    let cycle = [ShiftType.gunduz, .gunduz, .gece, .gece, .izin, .izin]
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0f172a" id="meta-theme-color">
     
-    var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(spacing: 20) {
-                    ForEach(1...12, id: \.self) { month in
-                        MonthView(month: month)
+    <!-- Tailwind CSS & Fonts -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Leaflet CSS & JS (Harita İçin) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <script>
+        const savedTheme = localStorage.getItem('v_theme') || 'dark';
+        if (savedTheme === 'dark') document.documentElement.classList.add('dark');
+        
+        tailwind.config = {
+            darkMode: 'class',
+            theme: { 
+                extend: { 
+                    fontFamily: { sans: ['Outfit', 'sans-serif'] },
+                    colors: {
+                        brand: { 300: '#93c5fd', 500: '#3b82f6', 600: '#2563eb', 900: '#1e3a8a' }
                     }
-                }
-                .padding()
+                } 
             }
-            .navigationTitle("2026 Takvimim")
-            .background(Color(UIColor.systemGroupedBackground))
         }
-    }
-    
-    func getShift(for date: Date) -> ShiftType {
-        let diff = Calendar.current.dateComponents([.day], from: referenceDate, to: date).day ?? 0
-        let index = (3 + diff) % 6
-        return cycle[index < 0 ? index + 6 : index]
-    }
-}
+    </script>
 
-struct MonthView: View {
-    let month: Int
-    
-    var body: some View {
-        VStack {
-            Text(DateFormatter().monthSymbols[month - 1] + " 2026")
-                .font(.headline)
-                .padding(.bottom, 5)
+    <style>
+        * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; outline: none; }
+        body { margin: 0; padding: 0; overflow-x: hidden; font-family: 'Outfit', sans-serif; background-color: #f1f5f9; color: #1e293b; transition: color 0.3s; }
+        html.dark body { background-color: #020617; color: #f8fafc; }
+        
+        /* LIQUID BACKGROUND ANIMATION */
+        .liquid-bg { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -1; overflow: hidden; background: #e0e7ff; transition: background 0.5s; }
+        html.dark .liquid-bg { background: #020617; }
+        .liquid-blob { position: absolute; filter: blur(80px); opacity: 0.6; border-radius: 50%; animation: float 20s infinite ease-in-out alternate; }
+        .blob-1 { top: -10%; left: -10%; width: 50vw; height: 50vw; background: #93c5fd; animation-delay: 0s; }
+        .blob-2 { bottom: -20%; right: -10%; width: 60vw; height: 60vw; background: #c4b5fd; animation-delay: -5s; }
+        .blob-3 { top: 40%; left: 60%; width: 40vw; height: 40vw; background: #86efac; animation-delay: -10s; }
+        html.dark .blob-1 { background: #1e3a8a; opacity: 0.5; }
+        html.dark .blob-2 { background: #4c1d95; opacity: 0.5; }
+        html.dark .blob-3 { background: #064e3b; opacity: 0.4; }
+        @keyframes float { 0% { transform: translate(0, 0) scale(1); } 100% { transform: translate(10vw, 15vh) scale(1.2); } }
+
+        /* GLASSMORPHISM CLASSES */
+        .glass { background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px); border: 1px solid rgba(255, 255, 255, 0.4); box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.05); }
+        html.dark .glass { background: rgba(15, 23, 42, 0.3); border: 1px solid rgba(255, 255, 255, 0.08); box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4); }
+        
+        .glass-input { background: rgba(255, 255, 255, 0.5); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.5); border-radius: 16px; padding: 12px 16px; transition: all 0.3s; width: 100%; color: inherit; }
+        html.dark .glass-input { background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .glass-input:focus { border-color: #3b82f6; background: rgba(255, 255, 255, 0.8); }
+        html.dark .glass-input:focus { border-color: #60a5fa; background: rgba(15, 23, 42, 0.8); }
+
+        .glass-btn-primary { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; border: none; box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4); transition: transform 0.2s; cursor: pointer;}
+        .glass-btn-primary:active { transform: scale(0.96); box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4); }
+
+        .app-page { display: none; padding-bottom: 90px; min-height: 100vh; animation: fadeIn 0.4s ease-out forwards; }
+        .app-page.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .bottom-nav { position: fixed; bottom: 16px; left: 16px; right: 16px; height: 70px; border-radius: 24px; display: flex; justify-content: space-between; align-items: center; z-index: 50; padding: 0 5px; }
+        .nav-item { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 20%; height: 100%; color: #64748b; transition: all 0.3s; cursor: pointer; }
+        html.dark .nav-item { color: #94a3b8; }
+        .nav-item.active { color: #2563eb; transform: translateY(-3px); }
+        html.dark .nav-item.active { color: #60a5fa; }
+        .nav-item span { font-size: 22px; margin-bottom: 2px; }
+        .nav-item p { font-size: 9px; font-weight: 800; opacity: 0; transition: opacity 0.3s; }
+        .nav-item.active p { opacity: 1; }
+
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        .modal-wrap { background: rgba(0,0,0,0.5); backdrop-filter: blur(8px); position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.3s; padding: 20px; }
+        .modal-wrap.active { opacity: 1; pointer-events: all; }
+        .modal-content { width: 100%; max-width: 400px; max-height: 85vh; overflow-y: auto; transform: scale(0.95); transition: transform 0.3s; }
+        .modal-wrap.active .modal-content { transform: scale(1); }
+
+        .toast-container { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 9999; display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
+        .toast { padding: 12px 24px; border-radius: 30px; font-size: 13px; font-weight: 600; text-align: center; animation: toastAnim 3s forwards; }
+        @keyframes toastAnim { 0% { opacity: 0; transform: translateY(-20px); } 10% { opacity: 1; transform: translateY(0); } 90% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-20px); } }
+
+        /* Harita ve Takvim Input Düzeltmeleri */
+        #map-container { z-index: 10; border-radius: 24px; overflow: hidden; position: relative; }
+        .leaflet-control-attribution { display: none !important; }
+        .radar-scan { position: absolute; inset: 0; background: conic-gradient(from 0deg, transparent 70%, rgba(59, 130, 246, 0.4) 100%); border-radius: 50%; animation: radar 4s linear infinite; pointer-events: none; z-index: 20; opacity: 0.3; }
+        @keyframes radar { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        
+        .custom-ship-icon { transition: all 0.5s linear; }
+        
+        /* Tarih Seçici için Liquid Düzenleme */
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(0.5);
+            cursor: pointer;
+        }
+        html.dark input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(1);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="liquid-bg">
+        <div class="liquid-blob blob-1"></div>
+        <div class="liquid-blob blob-2"></div>
+        <div class="liquid-blob blob-3"></div>
+    </div>
+
+    <div id="toast-area" class="toast-container"></div>
+
+    <!-- MODAL: GÜNLÜK NOT -->
+    <div id="day-modal" class="modal-wrap" onclick="if(event.target===this) closeModal('day-modal')">
+        <div class="glass modal-content rounded-[32px] p-6 flex flex-col">
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h3 class="text-xl font-bold">Gün Detayı</h3>
+                    <p id="modal-date-title" class="text-sm text-brand-500 font-semibold"></p>
+                </div>
+                <button onclick="closeModal('day-modal')" class="w-10 h-10 rounded-full glass flex items-center justify-center font-bold">✕</button>
+            </div>
             
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 8) {
-                ForEach(1...31, id: \.self) { day in
-                    if let date = Calendar.current.date(from: DateComponents(year: 2026, month: month, day: day)) {
-                        VStack {
-                            Text("\(day)").font(.system(size: 10))
-                            Text(ContentView().getShift(for: date).rawValue.prefix(1))
-                                .font(.system(size: 8, weight: .bold))
-                        }
-                        .frame(height: 40)
-                        .frame(maxWidth: .infinity)
-                        .background(ContentView().getShift(for: date).color)
-                        .cornerRadius(8)
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider mb-2 opacity-70">Manuel Vardiya Değiştir</label>
+                    <select id="modal-shift-override" class="glass-input font-semibold appearance-none">
+                        <option value="">Otomatik Döngüyü Kullan</option>
+                        <option value="Gündüz">Gündüz (☀️)</option>
+                        <option value="Gece">Gece (🌙)</option>
+                        <option value="İzin">Haftalık İzin (🏖️)</option>
+                        <option value="Raporlu">Raporlu / Mazeret İzni (🏥)</option>
+                        <option value="Yıllık İzin">Yıllık İzin (✈️)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider mb-2 opacity-70">Ajanda & Notlar</label>
+                    <div class="relative">
+                        <textarea id="modal-note" rows="4" class="glass-input resize-none" placeholder="Bu güne ait notlarınızı yazın..."></textarea>
+                    </div>
+                </div>
+                <div class="flex gap-3 pt-2">
+                    <button onclick="saveDayDetails()" class="flex-1 py-3 glass-btn-primary rounded-2xl font-bold">Kaydet</button>
+                    <button onclick="clearDayDetails()" class="py-3 px-5 glass rounded-2xl font-bold text-red-500">Temizle</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- BOTTOM NAVIGATION (5 Items) -->
+    <nav class="glass bottom-nav">
+        <div class="nav-item active" onclick="navigate('home', this)"><span>🏠</span><p>Ana Ekran</p></div>
+        <div class="nav-item" onclick="navigate('calendar', this)"><span>📅</span><p>Takvim</p></div>
+        <div class="nav-item" onclick="navigate('finance', this)"><span>💰</span><p>Finans</p></div>
+        <div class="nav-item" onclick="navigate('ships', this)"><span>🚢</span><p>Gemiler</p></div>
+        <div class="nav-item" onclick="navigate('tools', this)"><span>🛡️</span><p>Araçlar</p></div>
+    </nav>
+
+    <div class="max-w-[500px] mx-auto w-full px-5 pt-8">
+        
+        <!-- HEADER -->
+        <header class="flex justify-between items-center mb-6">
+            <div>
+                <h1 id="greeting-text" class="text-2xl font-extrabold tracking-tight">Vardiya Akışı</h1>
+                <p class="text-sm font-medium opacity-70" id="current-date-text"></p>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="navigate('settings', null)" class="w-11 h-11 rounded-full glass flex items-center justify-center text-xl transition-transform hover:scale-105 active:scale-95 border border-white/10">⚙️</button>
+                <button onclick="toggleTheme()" class="w-11 h-11 rounded-full glass flex items-center justify-center text-xl transition-transform hover:scale-105 active:scale-95 border border-white/10"><span id="theme-icon">🌙</span></button>
+            </div>
+        </header>
+
+        <!-- PAGE: HOME -->
+        <div id="page-home" class="app-page active space-y-5">
+            <div class="glass rounded-[32px] p-6 relative overflow-hidden flex flex-col justify-between min-h-[160px]">
+                <div class="absolute -right-6 -top-6 text-8xl opacity-10 blur-[2px]" id="shift-icon-bg">🛡️</div>
+                <div class="relative z-10">
+                    <span class="text-xs font-bold uppercase tracking-widest opacity-80">Şu Anki Durum</span>
+                    <h2 class="text-4xl font-black text-brand-500 dark:text-brand-300 mt-1" id="dash-today-shift">Yükleniyor...</h2>
+                </div>
+                
+                <div id="progress-wrapper" class="mt-4 hidden w-full relative z-10">
+                    <div class="flex justify-between text-xs font-bold mb-2">
+                        <span>Mesai İlerlemesi</span>
+                        <span id="progress-percent">%0</span>
+                    </div>
+                    <div class="w-full h-2 rounded-full bg-black/10 dark:bg-white/10 overflow-hidden relative">
+                        <div id="progress-bar" class="absolute top-0 left-0 h-full bg-brand-500 rounded-full transition-all duration-1000 w-0"></div>
+                    </div>
+                    <p id="progress-desc" class="text-[10px] font-medium mt-2 opacity-70 text-center"></p>
+                </div>
+            </div>
+
+            <!-- Static Dashboard Pills Grid -->
+            <div class="grid grid-cols-2 gap-3 w-full">
+                <div class="glass px-3 py-3 rounded-2xl flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-500 flex items-center justify-center text-xl shrink-0">💰</div>
+                    <div class="flex flex-col overflow-hidden">
+                        <span class="text-[10px] font-bold opacity-70 truncate">Maaşa Kalan</span>
+                        <span id="dash-payday" class="text-sm font-black truncate">- Gün</span>
+                    </div>
+                </div>
+                <div class="glass px-3 py-3 rounded-2xl flex items-center gap-3 cursor-pointer active:scale-95 transition-transform" onclick="fetchWeather()">
+                    <div class="w-10 h-10 rounded-full bg-blue-500/20 text-blue-500 flex items-center justify-center text-xl shrink-0" id="dash-weather-icon">⛅</div>
+                    <div class="flex flex-col overflow-hidden">
+                        <span class="text-[10px] font-bold opacity-70 truncate">Hava Durumu</span>
+                        <span id="dash-weather-temp" class="text-sm font-black truncate">...</span>
+                    </div>
+                </div>
+                <div class="glass px-3 py-3 rounded-2xl flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-purple-500/20 text-purple-500 flex items-center justify-center text-xl shrink-0">🏖️</div>
+                    <div class="flex flex-col overflow-hidden">
+                        <span class="text-[10px] font-bold opacity-70 truncate">Sıradaki İzin</span>
+                        <span id="dash-next-off" class="text-sm font-black truncate">...</span>
+                    </div>
+                </div>
+                <div class="glass px-3 py-3 rounded-2xl flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-amber-500/20 text-amber-500 flex items-center justify-center text-xl shrink-0">⏭️</div>
+                    <div class="flex flex-col overflow-hidden">
+                        <span class="text-[10px] font-bold opacity-70 truncate">Yarınki Nöbet</span>
+                        <span id="dash-next-shift" class="text-sm font-black truncate">...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Monthly Summary -->
+            <div class="glass rounded-3xl p-4 flex justify-between items-center text-center">
+                 <div class="flex-1 border-r border-black/10 dark:border-white/10">
+                     <span class="block text-[10px] font-bold opacity-70">Bu Ay Gündüz</span>
+                     <span id="dash-sum-gunduz" class="text-lg font-black text-brand-500">0</span>
+                 </div>
+                 <div class="flex-1 border-r border-black/10 dark:border-white/10">
+                     <span class="block text-[10px] font-bold opacity-70">Bu Ay Gece</span>
+                     <span id="dash-sum-gece" class="text-lg font-black text-indigo-500">0</span>
+                 </div>
+                 <div class="flex-1">
+                     <span class="block text-[10px] font-bold opacity-70">Toplam İzin</span>
+                     <span id="dash-sum-izin" class="text-lg font-black text-emerald-500">0</span>
+                 </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                 <button onclick="openDayModal(new Date().getDate(), new Date().getMonth())" class="glass p-4 rounded-3xl flex flex-col items-center justify-center text-center active:scale-95 transition-transform border-brand-500/30 border">
+                    <span class="text-3xl mb-2">📝</span><h4 class="font-bold text-sm">Hızlı Not Al</h4>
+                 </button>
+                 <button onclick="navigate('calendar', document.querySelectorAll('.nav-item')[1])" class="glass p-4 rounded-3xl flex flex-col items-center justify-center text-center active:scale-95 transition-transform border-brand-500/30 border">
+                    <span class="text-3xl mb-2">📅</span><h4 class="font-bold text-sm">Takvime Git</h4>
+                 </button>
+            </div>
+        </div>
+
+        <!-- PAGE: CALENDAR -->
+        <div id="page-calendar" class="app-page space-y-4">
+            <div class="flex items-center justify-between mb-2">
+                <button onclick="changeMonth(-1)" class="w-10 h-10 glass rounded-full flex items-center justify-center font-bold">‹</button>
+                <h2 id="calendar-title" class="text-xl font-bold">Ay Yılı</h2>
+                <button onclick="changeMonth(1)" class="w-10 h-10 glass rounded-full flex items-center justify-center font-bold">›</button>
+            </div>
+            
+            <div class="glass rounded-[32px] p-4 sm:p-5">
+                <div id="calendar-grid" class="grid grid-cols-7 gap-1 sm:gap-2 text-center w-full"></div>
+            </div>
+        </div>
+
+        <!-- PAGE: FINANCE -->
+        <div id="page-finance" class="app-page space-y-5">
+            <div class="flex glass rounded-2xl p-1 relative">
+                <button onclick="switchFinTab('mesai')" id="tab-btn-mesai" class="flex-1 py-2 text-sm font-bold rounded-xl bg-white/20 dark:bg-white/10 shadow-sm transition-all">Maaş & Mesai</button>
+                <button onclick="switchFinTab('butce')" id="tab-btn-butce" class="flex-1 py-2 text-sm font-bold rounded-xl opacity-60 transition-all">Bütçe Planı</button>
+            </div>
+
+            <!-- TAB: MESAI -->
+            <div id="tab-mesai" class="space-y-4 animate-[fadeIn_0.3s]">
+                <div class="glass rounded-[32px] p-5 space-y-4">
+                    <div>
+                        <label class="block text-[10px] font-bold uppercase tracking-wider mb-1 opacity-70">Aylık Net Maaş (₺)</label>
+                        <input type="number" id="fin-maas" class="glass-input text-lg font-black" placeholder="Örn: 17002">
+                    </div>
+                    
+                    <div class="p-4 rounded-2xl bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 space-y-3">
+                        <span class="text-[10px] font-bold uppercase text-brand-500 tracking-wider">1. Mesai (Normal)</span>
+                        <div class="flex gap-2">
+                            <input type="number" id="fin-mesai-saat" placeholder="Saat" class="glass-input !py-2 text-sm">
+                            <input type="number" id="fin-mesai-ucret" placeholder="Saatlik ₺" class="glass-input !py-2 text-sm">
+                            <select id="fin-mesai-carpan" class="glass-input !py-2 text-sm appearance-none font-bold text-center">
+                                <option value="1">x1.0</option><option value="1.5">x1.5</option><option value="2" selected>x2.0</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="p-4 rounded-2xl bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 space-y-3">
+                        <span class="text-[10px] font-bold uppercase text-rose-500 tracking-wider">2. Mesai (Özel Gün/Bayram)</span>
+                        <div class="flex gap-2">
+                            <input type="number" id="fin-mesai-saat-2" placeholder="Saat" class="glass-input !py-2 text-sm">
+                            <input type="number" id="fin-mesai-ucret-2" placeholder="Saatlik ₺" class="glass-input !py-2 text-sm">
+                            <select id="fin-mesai-carpan-2" class="glass-input !py-2 text-sm appearance-none font-bold text-center">
+                                <option value="1">x1.0</option><option value="1.5">x1.5</option><option value="2" selected>x2.0</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] font-bold uppercase tracking-wider mb-1 opacity-70">Yol (Gün x ₺)</label>
+                            <div class="flex gap-1"><input type="number" id="fin-yol-gun" placeholder="Gün" class="glass-input !py-2 text-sm text-center"><input type="number" id="fin-yol-ucret" placeholder="₺" class="glass-input !py-2 text-sm text-center"></div>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold uppercase tracking-wider mb-1 opacity-70">Yemek (Gün x ₺)</label>
+                            <div class="flex gap-1"><input type="number" id="fin-yemek-gun" placeholder="Gün" class="glass-input !py-2 text-sm text-center"><input type="number" id="fin-yemek-ucret" placeholder="₺" class="glass-input !py-2 text-sm text-center"></div>
+                        </div>
+                    </div>
+
+                    <button onclick="calculateAndTransfer()" class="w-full py-4 glass-btn-primary rounded-2xl font-bold text-lg mt-2">Hesapla ve Bütçeye Aktar</button>
+                </div>
+
+                <div class="glass rounded-[32px] p-6 text-center border-brand-500/30">
+                    <span class="block text-[10px] font-bold uppercase tracking-widest opacity-70 mb-1">Hesaplanan Toplam Hakediş</span>
+                    <div id="fin-total-hakedis" class="text-3xl font-black text-brand-500">Hesaplanmadı</div>
+                </div>
+            </div>
+
+            <!-- TAB: BUTCE -->
+            <div id="tab-butce" class="hidden space-y-4 animate-[fadeIn_0.3s]">
+                <div class="glass rounded-[32px] p-6 flex flex-col items-center relative overflow-hidden">
+                    <div class="absolute inset-0 bg-gradient-to-b from-brand-500/10 to-transparent"></div>
+                    <span class="relative z-10 text-[10px] font-bold uppercase tracking-widest opacity-70 mb-1">Maaştan Kalan Net (Tahmini)</span>
+                    <div id="fin-net-kalan" class="relative z-10 text-3xl font-black text-emerald-500">0 ₺</div>
+                    <div class="relative z-10 flex w-full justify-between mt-4 text-xs font-bold px-2">
+                        <span class="opacity-70">Giderler Toplamı:</span>
+                        <span id="fin-total-expense" class="text-rose-500">0 ₺</span>
+                    </div>
+                </div>
+
+                <div class="glass rounded-3xl p-5 space-y-3">
+                    <h3 class="text-sm font-bold mb-1 flex items-center justify-between">Yeni Gider/Fatura Ekle <button onclick="addExpense()" class="glass-btn-primary px-3 py-1 rounded-xl text-xs">Ekle</button></h3>
+                    <div class="flex gap-2">
+                        <select id="exp-category" class="glass-input !py-2 text-sm w-1/2 cursor-pointer font-medium">
+                            <option value="" disabled selected>Kategori Seç</option>
+                            <option value="Elektrik">⚡ Elektrik</option>
+                            <option value="Su">💧 Su</option>
+                            <option value="İnternet">🌐 İnternet</option>
+                            <option value="Doğalgaz">🔥 Doğalgaz</option>
+                            <option value="Kira">🏠 Kira</option>
+                            <option value="Aidat">🏢 Aidat</option>
+                            <option value="Kredi/Kredi Kartı">💳 Kredi / Kart</option>
+                            <option value="Diğer">📦 Diğer</option>
+                        </select>
+                        <input type="date" id="exp-date" class="glass-input !py-2 text-sm w-1/2 font-medium">
+                    </div>
+                    <div class="flex gap-2">
+                        <input type="text" id="exp-name" placeholder="Açıklama (Opsiyonel)" class="glass-input !py-2 text-sm w-full">
+                        <input type="number" id="exp-amount" placeholder="Tutar ₺" class="glass-input !py-2 text-sm w-32 shrink-0">
+                    </div>
+                </div>
+
+                <div class="glass rounded-3xl p-5">
+                    <h3 class="text-sm font-bold mb-3 opacity-70">Aylık Ödeme Planı</h3>
+                    <ul id="expense-list" class="space-y-2 max-h-48 overflow-y-auto pr-1"></ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- PAGE: SHIPS (GERÇEK API ENTEGRASYONU) -->
+        <div id="page-ships" class="app-page space-y-4">
+            <div class="glass rounded-[32px] p-5 mb-2 border-brand-500/20 flex justify-between items-center">
+                <div>
+                    <h2 class="text-lg font-bold mb-1 flex items-center gap-2"><span>🚢</span> Canlı Gemi Radarı</h2>
+                    <p class="text-[10px] font-medium opacity-70 uppercase tracking-wider">Filtrelenmiş MMSI Taraması</p>
+                </div>
+                <div class="flex items-center gap-2" id="radar-status">
+                    <span class="relative flex h-3 w-3"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span><span class="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span></span>
+                    <span class="text-xs font-bold text-amber-500" id="radar-status-text">Bağlanıyor...</span>
+                </div>
+            </div>
+
+            <!-- HARİTA KONTEYNERİ -->
+            <div class="glass rounded-[32px] p-2 relative h-[55vh]">
+                <div class="radar-scan" id="radar-effect"></div>
+                <div id="map-container" class="w-full h-full rounded-[24px]"></div>
+            </div>
+            
+            <p class="text-[10px] text-center opacity-60 font-medium px-4">
+                * Hedef gemiler bulundukça haritada işaretlenir ve log olarak konsola düşer.
+            </p>
+        </div>
+
+        <!-- PAGE: TOOLS -->
+        <div id="page-tools" class="app-page space-y-4">
+            <div class="grid grid-cols-2 gap-3 mt-4">
+                <button onclick="openToolModal('izin')" class="glass rounded-2xl p-4 text-left active:scale-95 transition-transform"><span class="text-2xl block mb-2">✈️</span><h4 class="font-bold text-sm">İzin Planlayıcı</h4></button>
+                <button onclick="openToolModal('devir')" class="glass rounded-2xl p-4 text-left active:scale-95 transition-transform"><span class="text-2xl block mb-2">🤝</span><h4 class="font-bold text-sm">Devir Teslim</h4></button>
+                <button onclick="openToolModal('eskal')" class="glass rounded-2xl p-4 text-left active:scale-95 transition-transform"><span class="text-2xl block mb-2">👤</span><h4 class="font-bold text-sm">Eşkâl Formu</h4></button>
+                <button onclick="openToolModal('bmi')" class="glass rounded-2xl p-4 text-left active:scale-95 transition-transform"><span class="text-2xl block mb-2">💪</span><h4 class="font-bold text-sm">V.K.İ Hesapla</h4></button>
+            </div>
+        </div>
+
+        <!-- PAGE: SETTINGS -->
+        <div id="page-settings" class="app-page space-y-5">
+            <div class="glass rounded-[32px] p-6 space-y-5">
+                <div>
+                    <h3 class="text-sm font-bold uppercase tracking-wider opacity-70 mb-3 border-b border-black/10 dark:border-white/10 pb-1">Vardiya Döngüsü</h3>
+                    <div class="space-y-3">
+                        <div>
+                            <select id="set-cycle" class="glass-input font-medium appearance-none">
+                                <option value="2g2g2i">2 Gündüz, 2 Gece, 2 İzin</option>
+                                <option value="4g2i">4 Gündüz, 2 İzin</option>
+                                <option value="5g2i">5 Gündüz, 2 İzin (H.Sonu İzin)</option>
+                                <option value="sabit_g">Sabit Gündüz (Pazar İzin)</option>
+                                <option value="sabit_ge">Sabit Gece (Pazar İzin)</option>
+                            </select>
+                        </div>
+                        <input type="date" id="set-ref-date" class="glass-input font-medium">
+                        <div class="flex gap-2">
+                            <div class="w-1/2">
+                                <label class="block text-[10px] font-bold opacity-70 text-emerald-500">Gündüz Baş/Bit</label>
+                                <div class="flex gap-1"><input type="time" id="set-g-start" class="glass-input !px-1 !py-2 text-xs text-center"><input type="time" id="set-g-end" class="glass-input !px-1 !py-2 text-xs text-center"></div>
+                            </div>
+                            <div class="w-1/2">
+                                <label class="block text-[10px] font-bold opacity-70 text-brand-500">Gece Baş/Bit</label>
+                                <div class="flex gap-1"><input type="time" id="set-ge-start" class="glass-input !px-1 !py-2 text-xs text-center"><input type="time" id="set-ge-end" class="glass-input !px-1 !py-2 text-xs text-center"></div>
+                            </div>
+                        </div>
+                        <input type="number" id="set-payday" class="glass-input font-medium" placeholder="Maaş Günü (Örn: 5)">
+                    </div>
+                </div>
+                <button onclick="saveAllSettings()" class="w-full py-4 glass-btn-primary rounded-2xl font-bold text-lg">Kaydet</button>
+            </div>
+            <button onclick="factoryReset()" class="w-full py-3 glass rounded-2xl text-rose-500 font-bold text-sm border-rose-500/30">Tüm Verileri Sıfırla</button>
+        </div>
+    </div>
+
+    <!-- GENEL ARAÇ MODALI -->
+    <div id="tool-modal" class="modal-wrap" onclick="if(event.target===this) closeModal('tool-modal')">
+        <div class="glass modal-content rounded-[32px] p-6 flex flex-col">
+            <div class="flex justify-between items-center mb-4">
+                <h3 id="tool-title" class="text-xl font-bold">Araç</h3>
+                <button onclick="closeModal('tool-modal')" class="w-10 h-10 rounded-full glass flex items-center justify-center font-bold">✕</button>
+            </div>
+            <div id="tool-body" class="space-y-4"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. STATE & STORE MANAGEMENT ---
+        const Store = {
+            get: (key, def) => { try { const val = localStorage.getItem(key); return val !== null ? JSON.parse(val) : def; } catch(e) { return def; } },
+            set: (key, val) => localStorage.setItem(key, JSON.stringify(val)),
+            getFloat: (key, def=0) => { const v = parseFloat(Store.get(key, def)); return isNaN(v) ? def : v; },
+            clear: () => localStorage.clear()
+        };
+
+        const AppData = {
+            theme: localStorage.getItem('v_theme') || 'dark',
+            shift: {
+                cycle: Store.get('v_cycle', '2g2g2i'), refDate: Store.get('v_ref', '2026-05-24'), payday: Store.getFloat('v_payday', 5),
+                gStart: Store.get('v_g_s', '07:30'), gEnd: Store.get('v_g_e', '19:30'), geStart: Store.get('v_ge_s', '19:30'), geEnd: Store.get('v_ge_e', '07:30')
+            },
+            overrides: Store.get('v_over', {}), notes: Store.get('v_notes', {}),
+            finance: {
+                totalHakedis: Store.getFloat('v_f_total', 0), // YENİ: Toplamı kaydetmek için
+                maas: Store.getFloat('v_f_maas', ''), mesaiSaat: Store.getFloat('v_f_ms', ''), mesaiUcret: Store.getFloat('v_f_mu', ''), mesaiCarpan: Store.getFloat('v_f_mc', 2),
+                mesaiSaat2: Store.getFloat('v_f_ms2', ''), mesaiUcret2: Store.getFloat('v_f_mu2', ''), mesaiCarpan2: Store.getFloat('v_f_mc2', 2),
+                yolGun: Store.getFloat('v_f_yg', ''), yolUcret: Store.getFloat('v_f_yu', ''), yemekGun: Store.getFloat('v_f_yemg', ''), yemekUcret: Store.getFloat('v_f_yemu', '')
+            },
+            expenses: Store.get('v_exp', [])
+        };
+
+        const STATE = { today: new Date(), viewDate: new Date(), activeDayKey: null };
+
+        // --- 2. UYGULAMA BAŞLATMA ---
+        window.onload = () => { startApp(); };
+
+        function startApp() {
+            fetchWeather(); renderHome(); loadSettingsToUI(); loadFinanceToUI();
+            setInterval(updateClock, 1000); updateClock();
+        }
+
+        // --- 3. UI & ROUTING & MAP (GERÇEK GEMİ TAKİP API) ---
+        let shipMap = null;
+        let shipMarkers = {};
+        let aisSocket = null;
+
+        function navigate(pageId, navEl = null) {
+            document.querySelectorAll('.app-page').forEach(el => el.classList.remove('active'));
+            document.getElementById('page-' + pageId).classList.add('active');
+            
+            if(navEl) {
+                document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+                navEl.classList.add('active');
+            }
+            window.scrollTo(0, 0);
+
+            if (pageId === 'home') renderHome();
+            if (pageId === 'calendar') renderCalendar();
+            if (pageId === 'finance') { updateFinanceUI(); renderExpenses(); }
+            if (pageId === 'ships') initShipTracker(); 
+        }
+
+        // GERÇEK API BAĞLANTISI (Kullanıcının ilettiği payload ile)
+        function initShipTracker() {
+            if(shipMap !== null) {
+                setTimeout(() => { shipMap.invalidateSize(); }, 100);
+                return;
+            }
+
+            // Global görünüm ile açılır çünkü bounding box tüm dünyayı tarıyor.
+            shipMap = L.map('map-container', { zoomControl: false }).setView([20, 0], 2);
+
+            const tileUrl = document.documentElement.classList.contains('dark') ? 
+                'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' : 
+                'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+
+            L.tileLayer(tileUrl, { maxZoom: 19 }).addTo(shipMap);
+            
+            const SHIP_API_KEY = "ccc0b1541d21b73e480600bc00ccb62f68010474";
+            connectRealAIS(SHIP_API_KEY);
+        }
+
+        function connectRealAIS(apiKey) {
+            const statusEl = document.getElementById('radar-status');
+
+            try {
+                // Kullanıcının ilettiği WebSocket adresi
+                aisSocket = new WebSocket("wss://stream.aisstream.io/v0/stream");
+
+                aisSocket.onopen = function(_) {
+                    // Kullanıcının ilettiği Payload Birebir Entegre Edildi
+                    let subscriptionMessage = {
+                        Apikey: apiKey,
+                        BoundingBoxes: [[[-90, -180], [90, 180]]], 
+                        FiltersShipMMSI: ["368207620", "367719770", "211476060"],
+                        FilterMessageTypes: ["PositionReport"]
+                    };
+                    aisSocket.send(JSON.stringify(subscriptionMessage));
+                    
+                    statusEl.innerHTML = `<span class="relative flex h-3 w-3"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span></span><span class="text-xs font-bold text-emerald-500" id="radar-status-text">Bağlandı (Gemi Bekleniyor)</span>`;
+                };
+
+                aisSocket.onmessage = function(event) {
+                    let aisMessage = JSON.parse(event.data);
+                    
+                    // Kullanıcı isteği üzerine log:
+                    console.log(aisMessage);
+                    
+                    if(aisMessage["MessageType"] === "PositionReport") {
+                        let report = aisMessage["Message"]["PositionReport"];
+                        updateShipMarker(
+                            aisMessage.MetaData.MMSI, 
+                            report.Latitude, 
+                            report.Longitude, 
+                            aisMessage.MetaData.ShipName || "Bilinmeyen Gemi",
+                            report.TrueHeading,
+                            report.Sog
+                        );
+                        
+                        document.getElementById('radar-status-text').innerText = "Aktif Veri Akışı";
                     }
-                }
+                };
+
+                aisSocket.onerror = function(error) {
+                    statusEl.innerHTML = `<span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span><span class="text-xs font-bold text-red-500">Bağlantı Hatası</span>`;
+                    document.getElementById('radar-effect').style.display = 'none';
+                };
+
+                aisSocket.onclose = function() {
+                    statusEl.innerHTML = `<span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span><span class="text-xs font-bold text-red-500">Bağlantı Koptu</span>`;
+                    document.getElementById('radar-effect').style.display = 'none';
+                };
+
+            } catch (error) {
+                console.error("WebSocket Hatası:", error);
             }
         }
-        .padding()
-        .background(Color(UIColor.secondarySystemGroupedBackground))
-        .cornerRadius(16)
-        .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
-    }
-}
+
+        function updateShipMarker(mmsi, lat, lng, name, heading, speed) {
+            let rotation = heading !== undefined && heading !== 511 ? heading : 0;
+            
+            if(!shipMarkers[mmsi]) {
+                const shipIcon = L.divIcon({
+                    className: 'custom-ship-icon',
+                    html: `<div style="font-size:20px; transform: rotate(${rotation}deg); filter: drop-shadow(0px 0px 4px #3b82f6);">⛴️</div>`,
+                    iconSize: [20, 20], iconAnchor: [10, 10]
+                });
+                shipMarkers[mmsi] = L.marker([lat, lng], {icon: shipIcon}).addTo(shipMap);
+                let popupContent = `<div style="color:#0f172a; text-align:center;"><b>${name.trim()}</b><br><span style="font-size:11px; opacity:0.8;">MMSI: ${mmsi}</span><br><span style="font-size:11px;">Hız: ${speed !== undefined && speed !== 1023 ? speed.toFixed(1) + ' knot' : 'Bilinmiyor'}</span></div>`;
+                shipMarkers[mmsi].bindPopup(popupContent);
+            } else {
+                shipMarkers[mmsi].setLatLng([lat, lng]);
+                shipMarkers[mmsi].setIcon(L.divIcon({
+                    className: 'custom-ship-icon',
+                    html: `<div style="font-size:20px; transform: rotate(${rotation}deg); filter: drop-shadow(0px 0px 4px #3b82f6);">⛴️</div>`,
+                    iconSize: [20, 20], iconAnchor: [10, 10]
+                }));
+            }
+        }
+
+        // --- YARDIMCI FONKSİYONLAR ---
+        function showToast(msg, type="info") {
+            const container = document.getElementById('toast-area');
+            const el = document.createElement('div');
+            el.className = `glass toast text-white border ${type==='error'?'bg-red-500/80 border-red-500':'bg-slate-800/80 border-slate-600'}`;
+            el.innerText = msg; container.appendChild(el);
+            setTimeout(() => el.remove(), 3000);
+        }
+
+        function toggleTheme() {
+            const isDark = document.documentElement.classList.toggle('dark');
+            localStorage.setItem('v_theme', isDark ? 'dark' : 'light');
+            document.getElementById('theme-icon').innerText = isDark ? '☀️' : '🌙';
+            if(shipMap) { shipMap.remove(); shipMap = null; initShipTracker(); } 
+        }
+
+        function updateClock() {
+            const now = new Date(); document.getElementById('live-clock').innerText = now.toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' });
+        }
+
+        async function fetchWeather() { 
+            const weatherTempEl = document.getElementById('dash-weather-temp'); 
+            const weatherIconEl = document.getElementById('dash-weather-icon'); 
+            weatherTempEl.innerText = "...";
+            try { 
+                const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=Mersin,TR&appid=127997d73d31a727c2395dbed41ac8cc&units=metric&lang=tr`); 
+                if(res.ok) { 
+                    const data = await res.json(); 
+                    weatherTempEl.innerText = `${Math.round(data.main.temp)}°C`; 
+                    weatherIconEl.innerText = data.weather[0].id === 800 ? '☀️' : '☁️';
+                } 
+            } catch (e) { weatherTempEl.innerText = 'Hata'; } 
+        }
+
+        // --- 4. VARDİYA MATEMATİĞİ (GÜVENLİ) ---
+        function getSafeUTC(dateObj) { return Date.UTC(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), 12, 0, 0); }
+        function calculateShift(targetDate) {
+            try {
+                const refParts = AppData.shift.refDate.split('-');
+                if (refParts.length !== 3) return "Hata";
+                const utcRef = getSafeUTC(new Date(refParts[0], refParts[1] - 1, refParts[2]));
+                const utcTarget = getSafeUTC(targetDate);
+                const diffDays = Math.floor((utcTarget - utcRef) / 86400000);
+                let cycle = []; const s = AppData.shift.cycle;
+                if(s === '2g2g2i') cycle = ['Gündüz', 'Gündüz', 'Gece', 'Gece', 'İzin', 'İzin'];
+                else if(s === '4g2i') cycle = ['Gündüz', 'Gündüz', 'Gündüz', 'Gündüz', 'İzin', 'İzin'];
+                else if(s === '5g2i') return (targetDate.getDay() === 0 || targetDate.getDay() === 6) ? 'İzin' : 'Gündüz';
+                else if(s === 'sabit_g') return targetDate.getDay() === 0 ? 'İzin' : 'Gündüz';
+                else if(s === 'sabit_ge') return targetDate.getDay() === 0 ? 'İzin' : 'Gece';
+                
+                const len = cycle.length; let idx = diffDays % len; if (idx < 0) idx = len + idx; 
+                return cycle[idx];
+            } catch(e) { return "Hata"; }
+        }
+
+        function getShiftForDay(y, m, d) { const dateKey = `${y}-${m+1}-${d}`; if(AppData.overrides[dateKey]) return AppData.overrides[dateKey]; return calculateShift(new Date(y, m, d)); }
+        function getShiftIcon(shift) { if(shift === 'Gündüz') return '☀️'; if(shift === 'Gece') return '🌙'; if(shift.includes('İzin')) return '🏖️'; if(shift === 'Raporlu') return '🏥'; return '🛡️'; }
+
+        // --- 5. ANA EKRAN (HOME) ---
+        function renderHome() {
+            const now = STATE.today; const y = now.getFullYear(); const m = now.getMonth(); const d = now.getDate();
+            document.getElementById('current-date-text').innerText = now.toLocaleDateString('tr-TR', { weekday:'long', day:'numeric', month:'long' });
+            
+            const todayShift = getShiftForDay(y, m, d); const tmrwShift = getShiftForDay(y, m, d+1);
+            document.getElementById('dash-today-shift').innerText = todayShift;
+            document.getElementById('shift-icon-bg').innerText = getShiftIcon(todayShift);
+            document.getElementById('dash-next-shift').innerText = tmrwShift;
+
+            let nextOffDate = null;
+            for(let i=1; i<=30; i++) {
+                let chkDate = new Date(y, m, d+i);
+                if(getShiftForDay(chkDate.getFullYear(), chkDate.getMonth(), chkDate.getDate()).includes('İzin')) { nextOffDate = chkDate; break; }
+            }
+            if(nextOffDate) { let diffOff = Math.ceil((nextOffDate - now)/86400000); document.getElementById('dash-next-off').innerText = diffOff === 1 ? 'Yarın' : diffOff + ' Gün'; }
+
+            let cG=0, cGe=0, cIz=0; const daysInMonth = new Date(y, m + 1, 0).getDate();
+            for(let i=1; i<=daysInMonth; i++) { let s = getShiftForDay(y, m, i); if(s==='Gündüz') cG++; else if(s==='Gece') cGe++; else if(s.includes('İzin') || s === 'Raporlu') cIz++; }
+            document.getElementById('dash-sum-gunduz').innerText = cG; document.getElementById('dash-sum-gece').innerText = cGe; document.getElementById('dash-sum-izin').innerText = cIz;
+
+            let nextPay = new Date(y, m, AppData.shift.payday);
+            if(nextPay.getDay() === 6) nextPay.setDate(nextPay.getDate()-1); if(nextPay.getDay() === 0) nextPay.setDate(nextPay.getDate()-2);
+            if (now.getTime() > nextPay.getTime()) { nextPay = new Date(y, m+1, AppData.shift.payday); if(nextPay.getDay() === 6) nextPay.setDate(nextPay.getDate()-1); if(nextPay.getDay() === 0) nextPay.setDate(nextPay.getDate()-2); }
+            const diff = Math.ceil((nextPay - now) / 86400000); document.getElementById('dash-payday').innerText = diff <= 0 ? "Bugün!" : diff;
+
+            updateProgressBar(todayShift);
+        }
+
+        function updateProgressBar(shift) {
+            const wrap = document.getElementById('progress-wrapper'); const bar = document.getElementById('progress-bar'); const pctText = document.getElementById('progress-percent'); const desc = document.getElementById('progress-desc');
+            if(shift !== 'Gündüz' && shift !== 'Gece') { wrap.classList.add('hidden'); return; } wrap.classList.remove('hidden');
+            const timeToMins = (str) => { let p = str.split(':'); return parseInt(p[0]||0)*60 + parseInt(p[1]||0); };
+            const sMins = shift === 'Gündüz' ? timeToMins(AppData.shift.gStart) : timeToMins(AppData.shift.geStart); const eMins = shift === 'Gündüz' ? timeToMins(AppData.shift.gEnd) : timeToMins(AppData.shift.geEnd);
+            const now = new Date(); const currMins = now.getHours() * 60 + now.getMinutes();
+            let duration = eMins > sMins ? eMins - sMins : (eMins + 1440) - sMins; if(duration === 0) duration = 1;
+            let elapsed = 0; let st = 'before';
+            if (sMins < eMins) { if(currMins >= sMins && currMins <= eMins) { elapsed = currMins - sMins; st = 'in'; } else if(currMins > eMins) st = 'after'; } else { if(currMins >= sMins) { elapsed = currMins - sMins; st = 'in'; } else if(currMins <= eMins) { elapsed = currMins + 1440 - sMins; st = 'in'; } }
+            let pct = 0; if(st === 'in') { pct = (elapsed/duration)*100; desc.innerText = "Görevdesiniz, kolay gelsin."; } else if(st === 'after') { pct = 100; desc.innerText = "Mesai bitti."; } else { pct = 0; desc.innerText = "Mesai başlamadı."; }
+            pct = Math.min(100, Math.max(0, pct)); bar.style.width = pct + "%"; pctText.innerText = "%" + Math.round(pct);
+        }
+
+        // --- 6. TAKVİM ---
+        const MONTHS = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+        function changeMonth(dir) { STATE.viewDate.setMonth(STATE.viewDate.getMonth() + dir); renderCalendar(); }
+        function renderCalendar() {
+            const y = STATE.viewDate.getFullYear(); const m = STATE.viewDate.getMonth();
+            document.getElementById('calendar-title').innerText = `${MONTHS[m]} ${y}`;
+            const grid = document.getElementById('calendar-grid'); grid.innerHTML = "Pt Sa Ça Pe Cu Ct Pz".split(' ').map(d=>`<div class="text-[10px] sm:text-xs font-bold opacity-60 mb-2">${d}</div>`).join('');
+            const daysInMonth = new Date(y, m + 1, 0).getDate(); const firstDay = (new Date(y, m, 1).getDay() + 6) % 7;
+            for(let i=0; i<firstDay; i++) grid.innerHTML += `<div></div>`;
+            for(let d=1; d<=daysInMonth; d++) {
+                const shift = getShiftForDay(y, m, d); const key = `${y}-${m+1}-${d}`; const hasNote = AppData.notes[key]; const isOver = AppData.overrides[key]; const isToday = (d === STATE.today.getDate() && m === STATE.today.getMonth() && y === STATE.today.getFullYear());
+                let colorClass = 'bg-white/10 dark:bg-black/10';
+                if(shift === 'Gündüz') colorClass = 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30';
+                else if(shift === 'Gece') colorClass = 'bg-brand-500/20 text-brand-600 dark:text-brand-400 border border-brand-500/30';
+                else if(shift === 'Raporlu') colorClass = 'bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30';
+                let html = `<div onclick="openDayModal(${d}, ${m})" class="relative flex flex-col items-center justify-center rounded-[14px] h-[55px] cursor-pointer active:scale-90 transition-transform ${colorClass} ${isToday ? 'border-2 border-brand-500' : ''}">`;
+                let inds = `<div class="absolute top-1 left-0 right-0 flex justify-center gap-1">`; if(isOver) inds += `<div class="w-1.5 h-1.5 rounded-full bg-rose-500"></div>`; if(hasNote) inds += `<div class="w-1.5 h-1.5 rounded-full bg-brand-500"></div>`; inds += `</div>`;
+                html += `${inds}<span class="text-base font-black mt-1">${d}</span><span class="text-[8px] font-bold uppercase truncate w-full px-1">${shift==='Yıllık İzin'?'Y.İzin':shift}</span></div>`; grid.innerHTML += html;
+            }
+        }
+
+        // --- 7. DAY MODAL ---
+        function openDayModal(d, m) {
+            STATE.activeDayKey = `${STATE.viewDate.getFullYear() || STATE.today.getFullYear()}-${m+1}-${d}`;
+            document.getElementById('modal-date-title').innerText = `${d} ${MONTHS[m]}`;
+            document.getElementById('modal-shift-override').value = AppData.overrides[STATE.activeDayKey] || "";
+            document.getElementById('modal-note').value = AppData.notes[STATE.activeDayKey] || ""; document.getElementById('day-modal').classList.add('active');
+        }
+        function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+        function saveDayDetails() {
+            const shift = document.getElementById('modal-shift-override').value; const note = document.getElementById('modal-note').value.trim();
+            if(shift) AppData.overrides[STATE.activeDayKey] = shift; else delete AppData.overrides[STATE.activeDayKey];
+            if(note) AppData.notes[STATE.activeDayKey] = note; else delete AppData.notes[STATE.activeDayKey];
+            Store.set('v_over', AppData.overrides); Store.set('v_notes', AppData.notes);
+            closeModal('day-modal'); showToast("Güncellendi"); if(document.getElementById('page-calendar').classList.contains('active')) renderCalendar(); renderHome();
+        }
+        function clearDayDetails() { delete AppData.overrides[STATE.activeDayKey]; delete AppData.notes[STATE.activeDayKey]; Store.set('v_over', AppData.overrides); Store.set('v_notes', AppData.notes); closeModal('day-modal'); showToast("Temizlendi"); if(document.getElementById('page-calendar').classList.contains('active')) renderCalendar(); renderHome(); }
+
+        // --- 8. FİNANS VE BÜTÇE ---
+        function switchFinTab(tab) {
+            document.getElementById('tab-mesai').classList.add('hidden'); document.getElementById('tab-butce').classList.add('hidden');
+            document.getElementById('tab-btn-mesai').classList.add('opacity-60'); document.getElementById('tab-btn-butce').classList.add('opacity-60');
+            document.getElementById('tab-btn-butce').classList.remove('bg-white/20', 'dark:bg-white/10', 'shadow-sm'); document.getElementById('tab-btn-mesai').classList.remove('bg-white/20', 'dark:bg-white/10', 'shadow-sm');
+            document.getElementById('tab-' + tab).classList.remove('hidden'); document.getElementById('tab-btn-' + tab).classList.remove('opacity-60'); document.getElementById('tab-btn-' + tab).classList.add('bg-white/20', 'dark:bg-white/10', 'shadow-sm');
+        }
+        function loadFinanceToUI() {
+            document.getElementById('fin-maas').value = AppData.finance.maas || ''; document.getElementById('fin-mesai-saat').value = AppData.finance.mesaiSaat || ''; document.getElementById('fin-mesai-ucret').value = AppData.finance.mesaiUcret || ''; document.getElementById('fin-mesai-carpan').value = AppData.finance.mesaiCarpan || 2;
+            document.getElementById('fin-mesai-saat-2').value = AppData.finance.mesaiSaat2 || ''; document.getElementById('fin-mesai-ucret-2').value = AppData.finance.mesaiUcret2 || ''; document.getElementById('fin-mesai-carpan-2').value = AppData.finance.mesaiCarpan2 || 2;
+            document.getElementById('fin-yol-gun').value = AppData.finance.yolGun || ''; document.getElementById('fin-yol-ucret').value = AppData.finance.yolUcret || ''; document.getElementById('fin-yemek-gun').value = AppData.finance.yemekGun || ''; document.getElementById('fin-yemek-ucret').value = AppData.finance.yemekUcret || '';
+            
+            updateFinanceUI();
+        }
+        function saveFinanceRaw() {
+            AppData.finance.maas = parseFloat(document.getElementById('fin-maas').value) || 0; 
+            AppData.finance.mesaiSaat = parseFloat(document.getElementById('fin-mesai-saat').value) || 0; 
+            AppData.finance.mesaiUcret = parseFloat(document.getElementById('fin-mesai-ucret').value) || 0; 
+            AppData.finance.mesaiCarpan = parseFloat(document.getElementById('fin-mesai-carpan').value) || 2;
+            AppData.finance.mesaiSaat2 = parseFloat(document.getElementById('fin-mesai-saat-2').value) || 0; 
+            AppData.finance.mesaiUcret2 = parseFloat(document.getElementById('fin-mesai-ucret-2').value) || 0; 
+            AppData.finance.mesaiCarpan2 = parseFloat(document.getElementById('fin-mesai-carpan-2').value) || 2;
+            AppData.finance.yolGun = parseFloat(document.getElementById('fin-yol-gun').value) || 0; 
+            AppData.finance.yolUcret = parseFloat(document.getElementById('fin-yol-ucret').value) || 0; 
+            AppData.finance.yemekGun = parseFloat(document.getElementById('fin-yemek-gun').value) || 0; 
+            AppData.finance.yemekUcret = parseFloat(document.getElementById('fin-yemek-ucret').value) || 0;
+            
+            Store.set('v_f_maas', AppData.finance.maas); Store.set('v_f_ms', AppData.finance.mesaiSaat); Store.set('v_f_mu', AppData.finance.mesaiUcret); Store.set('v_f_mc', AppData.finance.mesaiCarpan); 
+            Store.set('v_f_ms2', AppData.finance.mesaiSaat2); Store.set('v_f_mu2', AppData.finance.mesaiUcret2); Store.set('v_f_mc2', AppData.finance.mesaiCarpan2); 
+            Store.set('v_f_yg', AppData.finance.yolGun); Store.set('v_f_yu', AppData.finance.yolUcret); Store.set('v_f_yemg', AppData.finance.yemekGun); Store.set('v_f_yemu', AppData.finance.yemekUcret);
+        }
+
+        // YENİ: Butona basılınca hesaplayan fonksiyon
+        function calculateAndTransfer() {
+            saveFinanceRaw();
+            const f = AppData.finance; 
+            const total = f.maas + (f.mesaiSaat * f.mesaiUcret * f.mesaiCarpan) + (f.mesaiSaat2 * f.mesaiUcret2 * f.mesaiCarpan2) + (f.yolGun * f.yolUcret) + (f.yemekGun * f.yemekUcret);
+            
+            AppData.finance.totalHakedis = total;
+            Store.set('v_f_total', total);
+            
+            updateFinanceUI();
+            showToast("Bütçe Planına Aktarıldı", "info");
+            switchFinTab('butce'); // Hesaplayınca direkt bütçe sekmesine atar
+        }
+
+        function updateFinanceUI() {
+            const total = AppData.finance.totalHakedis || 0;
+            document.getElementById('fin-total-hakedis').innerText = total > 0 ? total.toLocaleString('tr-TR') + ' ₺' : "Hesaplanmadı";
+            
+            let expTotal = 0; 
+            AppData.expenses.forEach(e => expTotal += e.amount); 
+            document.getElementById('fin-total-expense').innerText = expTotal.toLocaleString('tr-TR') + ' ₺'; 
+            document.getElementById('fin-net-kalan').innerText = (total - expTotal).toLocaleString('tr-TR') + ' ₺';
+            
+            const netEl = document.getElementById('fin-net-kalan'); 
+            if(total - expTotal < 0) netEl.classList.replace('text-emerald-500', 'text-rose-500'); 
+            else netEl.classList.replace('text-rose-500', 'text-emerald-500');
+        }
+
+        function renderExpenses() {
+            const list = document.getElementById('expense-list'); list.innerHTML = ""; 
+            if(AppData.expenses.length === 0) list.innerHTML = `<li class="text-xs opacity-50 text-center py-2">Henüz gider eklenmedi.</li>`;
+            
+            AppData.expenses.forEach(e => { 
+                list.innerHTML += `
+                <li class="flex justify-between items-center bg-black/5 dark:bg-white/5 p-3 rounded-xl border border-black/5 dark:border-white/5">
+                    <div class="flex flex-col overflow-hidden pr-2">
+                        <span class="font-bold text-sm truncate flex items-center gap-1">${e.category || '📦 Diğer'}</span>
+                        <span class="text-[10px] opacity-70">${e.date ? new Date(e.date).toLocaleDateString('tr-TR') : 'Tarihsiz'}${e.name ? ' - ' + e.name : ''}</span>
+                    </div>
+                    <div class="flex items-center gap-3 shrink-0">
+                        <span class="font-black text-rose-500">${e.amount} ₺</span>
+                        <button onclick="delExpense('${e.id}')" class="w-6 h-6 rounded-full bg-rose-500/20 text-rose-600 flex items-center justify-center text-xs font-bold">✕</button>
+                    </div>
+                </li>`; 
+            }); 
+            updateFinanceUI();
+        }
+
+        function addExpense() { 
+            const catSelect = document.getElementById('exp-category');
+            const categoryText = catSelect.options[catSelect.selectedIndex].text;
+            const categoryVal = catSelect.value;
+            const date = document.getElementById('exp-date').value;
+            const name = document.getElementById('exp-name').value; 
+            const amount = parseFloat(document.getElementById('exp-amount').value); 
+            
+            if(!categoryVal) return showToast("Lütfen Kategori Seçin", "error");
+            if(isNaN(amount)) return showToast("Geçerli bir tutar girin", "error"); 
+            
+            AppData.expenses.push({ 
+                id: Date.now().toString(), 
+                category: categoryText, 
+                date: date, 
+                name: name, 
+                amount: amount 
+            }); 
+            Store.set('v_exp', AppData.expenses); 
+            
+            document.getElementById('exp-name').value = ''; document.getElementById('exp-amount').value = ''; 
+            renderExpenses(); showToast("Gider Eklendi"); 
+        }
+
+        function delExpense(id) { AppData.expenses = AppData.expenses.filter(e => e.id !== id); Store.set('v_exp', AppData.expenses); renderExpenses(); }
+
+        // --- 9. ARAÇLAR ---
+        function openToolModal(type) {
+            const title = document.getElementById('tool-title'); const body = document.getElementById('tool-body');
+            if(type === 'izin') { title.innerText = "İzin Planlayıcı"; body.innerHTML = `<input type="date" id="t-izin-date" class="glass-input text-sm"><input type="number" id="t-izin-gun" placeholder="Kaç gün izin?" class="glass-input text-sm"><button onclick="calcIzin()" class="w-full py-3 glass-btn-primary rounded-xl font-bold">Hesapla</button><div id="t-izin-res" class="text-center font-black text-brand-500 text-lg mt-2"></div>`; } 
+            else if(type === 'devir') { title.innerText = "Devir Teslim"; body.innerHTML = `<div class="flex flex-col gap-2"><label class="flex items-center gap-2 text-sm font-bold"><input type="checkbox" class="w-4 h-4"> Telsiz / Batarya Tam</label><label class="flex items-center gap-2 text-sm font-bold"><input type="checkbox" class="w-4 h-4"> El Feneri Çalışıyor</label><label class="flex items-center gap-2 text-sm font-bold"><input type="checkbox" class="w-4 h-4"> Anahtarlar Teslim</label></div><textarea placeholder="Olay/Notlar..." rows="3" class="glass-input resize-none text-sm"></textarea><input type="text" placeholder="Teslim Alan Kişi" class="glass-input text-sm"><button onclick="showToast('Tutanak sisteme kaydedildi.'); closeModal('tool-modal')" class="w-full py-3 glass-btn-primary rounded-xl font-bold">Kaydet</button>`; } 
+            else if(type === 'bmi') { title.innerText = "V.K.İ Hesapla"; body.innerHTML = `<input type="number" id="t-bmi-boy" placeholder="Boy (cm) Örn: 180" class="glass-input text-sm"><input type="number" id="t-bmi-kg" placeholder="Kilo (kg) Örn: 85" class="glass-input text-sm"><button onclick="calcBmi()" class="w-full py-3 glass-btn-primary rounded-xl font-bold">Hesapla</button><div id="t-bmi-res" class="text-center font-black text-lg mt-2"></div>`; } 
+            else if(type === 'eskal') { title.innerText = "Eşkâl Formu"; body.innerHTML = `<div class="grid grid-cols-2 gap-2"><input type="text" placeholder="Cinsiyet/Yaş" class="glass-input text-xs"><input type="text" placeholder="Boy/Kilo" class="glass-input text-xs"><input type="text" placeholder="Saç Rengi" class="glass-input text-xs"><input type="text" placeholder="Kıyafet" class="glass-input text-xs"></div><textarea placeholder="Belirgin İz/Dövme..." rows="2" class="glass-input resize-none text-xs"></textarea><button onclick="showToast('Eşkâl kaydedildi.'); closeModal('tool-modal')" class="w-full py-3 glass-btn-primary rounded-xl font-bold">Kaydet</button>`; }
+            document.getElementById('tool-modal').classList.add('active');
+        }
+        function calcIzin() { const dStr = document.getElementById('t-izin-date').value; const g = parseInt(document.getElementById('t-izin-gun').value); if(!dStr || isNaN(g)) return; let d = new Date(dStr); d.setDate(d.getDate() + g); document.getElementById('t-izin-res').innerText = "Dönüş: " + d.toLocaleDateString('tr-TR'); }
+        function calcBmi() { const b = parseFloat(document.getElementById('t-bmi-boy').value)/100; const k = parseFloat(document.getElementById('t-bmi-kg').value); if(!b || !k) return; const bmi = k / (b*b); let durum = bmi<18.5?"Zayıf":bmi<25?"Normal":bmi<30?"Kilolu":"Obez"; document.getElementById('t-bmi-res').innerText = `${bmi.toFixed(1)} - ${durum}`; }
+
+        // --- 10. AYARLAR ---
+        function loadSettingsToUI() { document.getElementById('set-cycle').value = AppData.shift.cycle; document.getElementById('set-ref-date').value = AppData.shift.refDate; document.getElementById('set-payday').value = AppData.shift.payday; document.getElementById('set-g-start').value = AppData.shift.gStart; document.getElementById('set-g-end').value = AppData.shift.gEnd; document.getElementById('set-ge-start').value = AppData.shift.geStart; document.getElementById('set-ge-end').value = AppData.shift.geEnd; }
+        function saveAllSettings() { AppData.shift.cycle = document.getElementById('set-cycle').value; AppData.shift.refDate = document.getElementById('set-ref-date').value; if(!AppData.shift.refDate) return showToast("Referans tarih zorunlu", "error"); AppData.shift.payday = parseInt(document.getElementById('set-payday').value) || 5; AppData.shift.gStart = document.getElementById('set-g-start').value || "07:30"; AppData.shift.gEnd = document.getElementById('set-g-end').value || "19:30"; AppData.shift.geStart = document.getElementById('set-ge-start').value || "19:30"; AppData.shift.geEnd = document.getElementById('set-ge-end').value || "07:30"; Store.set('v_cycle', AppData.shift.cycle); Store.set('v_ref', AppData.shift.refDate); Store.set('v_payday', AppData.shift.payday); Store.set('v_g_s', AppData.shift.gStart); Store.set('v_g_e', AppData.shift.gEnd); Store.set('v_ge_s', AppData.shift.geStart); Store.set('v_ge_e', AppData.shift.geEnd); showToast("Ayarlar Kaydedildi"); renderHome(); }
+        function factoryReset() { if(confirm("Tüm veriler silinecek. Emin misiniz?")) { Store.clear(); location.reload(); } }
+    </script>
+</body>
+</html>
+
 
 ```
-
-    
